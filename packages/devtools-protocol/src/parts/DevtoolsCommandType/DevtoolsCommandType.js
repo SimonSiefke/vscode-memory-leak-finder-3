@@ -76,6 +76,14 @@ export const PerformanceDisable = 'Performance.disable'
 
 export const PerformanceGetMetrics = 'Performance.getMetrics'
 
+export const ProfilerEnable = 'Profiler.enable'
+
+export const ProfilerStart = 'Profiler.start'
+
+export const ProfilerStop = 'Profiler.stop'
+
+export const ProfilerDisable = 'Profiler.disable'
+
 export const TracingStart = 'Tracing.start'
 
 export const TracingEnd = 'Tracing.end'

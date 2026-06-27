@@ -6,6 +6,7 @@ export * as DevtoolsProtocolHeapProfiler from '../DevtoolsProtocolHeapProfiler/D
 export * as DevtoolsProtocolMemory from '../DevtoolsProtocolMemory/DevtoolsProtocolMemory.js'
 export * as DevtoolsProtocolPage from '../DevtoolsProtocolPage/DevtoolsProtocolPage.js'
 export * as DevtoolsProtocolPerformance from '../DevtoolsProtocolPerformance/DevtoolsProtocolPerformance.js'
+export * as DevtoolsProtocolProfiler from '../DevtoolsProtocolProfiler/DevtoolsProtocolProfiler.js'
 export * as DevtoolsProtocolRuntime from '../DevtoolsProtocolRuntime/DevtoolsProtocolRuntime.js'
 export * as DevtoolsProtocolTarget from '../DevtoolsProtocolTarget/DevtoolsProtocolTarget.js'
 export * as DevtoolsProtocolTracing from '../DevtoolsProtocolTracing/DevtoolsProtocolTracing.js'
