@@ -9,6 +9,7 @@ const {
   DevtoolsProtocolPerformance,
   DevtoolsProtocolRuntime,
   DevtoolsProtocolTarget,
+  DevtoolsProtocolTracing,
 } = module
 
 export {
@@ -19,4 +20,5 @@ export {
   DevtoolsProtocolTarget,
   DevtoolsProtocolMemory,
   DevtoolsProtocolDomDebugger,
+  DevtoolsProtocolTracing,
 }
