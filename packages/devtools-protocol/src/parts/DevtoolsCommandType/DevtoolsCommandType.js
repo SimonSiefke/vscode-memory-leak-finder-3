@@ -76,6 +76,10 @@ export const PerformanceDisable = 'Performance.disable'
 
 export const PerformanceGetMetrics = 'Performance.getMetrics'
 
+export const TracingStart = 'Tracing.start'
+
+export const TracingEnd = 'Tracing.end'
+
 export const DebuggerStepInto = 'Debugger.stepInto'
 
 export const DebuggerStepOut = 'Debugger.stepOut'
