@@ -57,6 +57,9 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npm test
+      - name: Enable Linux perf counters
+        if: matrix.os == 'ubuntu-24.04'
+        uses: ./.github/actions/enable-linux-perf
       - name: Run headless test (with videos)
         if: matrix.os != 'macos-26'
         uses: coactions/setup-xvfb@v1
@@ -217,6 +220,8 @@ jobs:
         run: npm ci --ignore-scripts && npm run postinstall
         if: steps.npm-cache.outputs.cache-hit != 'true'
       - run: npm run build
+      - name: Enable Linux perf counters
+        uses: ./.github/actions/enable-linux-perf
       - name: Run headless test (check leaks, ${{ matrix.measure.name }})
         uses: coactions/setup-xvfb@v1
         with:
