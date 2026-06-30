@@ -239,6 +239,9 @@ jobs:
             echo "BUILD_VSCODE_MINIFIED_FLAG=" >> "$GITHUB_ENV"
           fi
 
+      - name: Enable Linux perf counters
+        uses: ./.github/actions/enable-linux-perf
+
       - name: Setup base revision
         run: |
           xvfb-run --auto-servernum node packages/cli/bin/test.js \
@@ -454,6 +457,9 @@ jobs:
           else
             echo "BUILD_VSCODE_MINIFIED_FLAG=" >> "$GITHUB_ENV"
           fi
+
+      - name: Enable Linux perf counters
+        uses: ./.github/actions/enable-linux-perf
 
       - name: Setup candidate revision
         run: |

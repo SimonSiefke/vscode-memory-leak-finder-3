@@ -1,0 +1,24 @@
+name: Enable Linux perf
+description: Enable Linux perf counters for unprivileged measurement jobs.
+runs:
+  using: composite
+  steps:
+    - name: Print current perf_event_paranoid
+      shell: bash
+      run: |
+        echo "Current kernel.perf_event_paranoid:"
+        cat /proc/sys/kernel/perf_event_paranoid
+
+    - name: Enable perf counters
+      shell: bash
+      run: sudo sysctl -w kernel.perf_event_paranoid=0
+
+    - name: Print updated perf_event_paranoid
+      shell: bash
+      run: |
+        echo "Updated kernel.perf_event_paranoid:"
+        cat /proc/sys/kernel/perf_event_paranoid
+
+    - name: Smoke test perf counters
+      shell: bash
+      run: perf stat --no-big-num -x , -e instructions:u,cycles:u true
