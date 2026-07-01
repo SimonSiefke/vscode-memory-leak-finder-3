@@ -57,9 +57,6 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npm test
-      - name: Enable Linux perf counters
-        if: matrix.os == 'ubuntu-24.04'
-        uses: ./.github/actions/enable-linux-perf
       - name: Run headless test (with videos)
         if: matrix.os != 'macos-26'
         uses: coactions/setup-xvfb@v1
@@ -184,6 +181,8 @@ jobs:
             args: --measure file-descriptors --runs 37 --restart-between --run-skipped-tests-anyway
           - name: file-watcher-count
             args: --measure file-watcher-count --runs 37 --restart-between --run-skipped-tests-anyway
+          - name: cpu-performance-counters
+            args: --measure cpu-performance-counters
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v6
@@ -221,6 +220,7 @@ jobs:
         if: steps.npm-cache.outputs.cache-hit != 'true'
       - run: npm run build
       - name: Enable Linux perf counters
+        if: matrix.measure.name == 'cpu-performance-counters'
         uses: ./.github/actions/enable-linux-perf
       - name: Run headless test (check leaks, ${{ matrix.measure.name }})
         uses: coactions/setup-xvfb@v1

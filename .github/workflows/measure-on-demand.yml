@@ -240,6 +240,7 @@ jobs:
           fi
 
       - name: Enable Linux perf counters
+        if: inputs.measure == 'cpu-performance-counters' || contains(inputs.cli_args, '--measure cpu-performance-counters')
         uses: ./.github/actions/enable-linux-perf
 
       - name: Setup base revision
@@ -459,6 +460,7 @@ jobs:
           fi
 
       - name: Enable Linux perf counters
+        if: inputs.measure == 'cpu-performance-counters' || contains(inputs.cli_args, '--measure cpu-performance-counters')
         uses: ./.github/actions/enable-linux-perf
 
       - name: Setup candidate revision
