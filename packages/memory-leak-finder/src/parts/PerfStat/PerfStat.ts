@@ -13,8 +13,14 @@ export interface PerfStatSession {
   readonly resultPromise: Promise<PerfStatResult>
 }
 
+const defaultPerfStatEvents = 'instructions:u,cycles:u'
+
+export const getPerfStatEvents = (): string => {
+  return process.env.VSCODE_MEMORY_LEAK_FINDER_PERF_EVENTS?.trim() || defaultPerfStatEvents
+}
+
 export const getPerfStatArgs = (pid: number): readonly string[] => {
-  return ['stat', '--no-big-num', '-x', ',', '-e', 'instructions:u,cycles:u', '-p', `${pid}`]
+  return ['stat', '--no-big-num', '-x', ',', '-e', getPerfStatEvents(), '-p', `${pid}`]
 }
 
 export const startPerfStat = async (pid: number): Promise<PerfStatSession> => {

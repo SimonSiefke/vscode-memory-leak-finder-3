@@ -44,6 +44,26 @@ const normalizeEventName = (eventName: string): string => {
   return eventName.trim().split(':')[0]
 }
 
+const getConfiguredEvents = (command: readonly string[]): Record<string, string> => {
+  const eventsIndex = command.indexOf('-e')
+  if (eventsIndex === -1) {
+    return Object.create(null)
+  }
+  const events = command[eventsIndex + 1]
+  if (!events) {
+    return Object.create(null)
+  }
+  const configuredEvents: Record<string, string> = Object.create(null)
+  for (const event of events.split(',')) {
+    const trimmedEvent = event.trim()
+    const normalized = normalizeEventName(trimmedEvent)
+    if (normalized === 'instructions' || normalized === 'cycles') {
+      configuredEvents[normalized] = trimmedEvent
+    }
+  }
+  return configuredEvents
+}
+
 export const parsePerfStatOutput = (rawOutput: string): Pick<CpuPerformanceCountersSample, 'cycles' | 'instructions'> => {
   const counters: Record<string, number | null> = Object.create(null)
   const lines = rawOutput.split('\n')
@@ -69,11 +89,12 @@ export const parsePerfStatOutput = (rawOutput: string): Pick<CpuPerformanceCount
 }
 
 export const toCpuPerformanceCounterRows = (sample: CpuPerformanceCountersSample): readonly CpuPerformanceCounter[] => {
+  const configuredEvents = getConfiguredEvents(sample.command)
   return counterSpecs.map((spec) => {
     const value = sample[spec.name]
     return {
       available: typeof value === 'number',
-      event: spec.event,
+      event: configuredEvents[spec.name] || spec.event,
       name: spec.name,
       unit: spec.unit,
       value,

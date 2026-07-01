@@ -3,22 +3,118 @@ description: Enable Linux perf counters for unprivileged measurement jobs.
 runs:
   using: composite
   steps:
-    - name: Print current perf_event_paranoid
+    - name: Enable and verify hardware perf counters
       shell: bash
       run: |
-        echo "Current kernel.perf_event_paranoid:"
-        cat /proc/sys/kernel/perf_event_paranoid
+        set -euo pipefail
 
-    - name: Enable perf counters
-      shell: bash
-      run: sudo sysctl -w kernel.perf_event_paranoid=0
+        print_sysctl() {
+          local key="$1"
+          local path="/proc/sys/${key//.//}"
+          if [[ -r "$path" ]]; then
+            echo "$key=$(cat "$path")"
+          else
+            echo "$key=<unavailable>"
+          fi
+        }
 
-    - name: Print updated perf_event_paranoid
-      shell: bash
-      run: |
-        echo "Updated kernel.perf_event_paranoid:"
-        cat /proc/sys/kernel/perf_event_paranoid
+        set_sysctl_required() {
+          local key="$1"
+          local value="$2"
+          sudo sysctl -w "$key=$value"
+        }
 
-    - name: Smoke test perf counters
-      shell: bash
-      run: perf stat --no-big-num -x , -e instructions:u,cycles:u true
+        set_sysctl_optional() {
+          local key="$1"
+          local value="$2"
+          if ! sudo sysctl -w "$key=$value"; then
+            echo "::warning::Could not set $key=$value"
+          fi
+        }
+
+        validate_perf_output() {
+          local output="$1"
+          if [[ -z "${output//[[:space:]]/}" ]]; then
+            return 1
+          fi
+          if grep -Eq '<not supported>|<not counted>|<not available>' <<< "$output"; then
+            return 1
+          fi
+          local valid_count
+          valid_count="$(
+            awk -F, '
+              /^[[:space:]]*#/ || /^[[:space:]]*$/ {
+                next
+              }
+              NF >= 3 {
+                value = $1
+                event = $3
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", event)
+                if (event ~ /^(instructions|cycles)(:u)?$/ && value ~ /^[0-9]+([.][0-9]+)?$/) {
+                  valid += 1
+                }
+              }
+              END {
+                print valid + 0
+              }
+            ' <<< "$output"
+          )"
+          [[ "$valid_count" -ge 2 ]]
+        }
+
+        probe_events() {
+          local events="$1"
+          local output
+          local status
+          set +e
+          output="$(perf stat --no-big-num -x , -e "$events" true 2>&1 >/dev/null)"
+          status=$?
+          set -e
+          echo "Probe output for $events:"
+          printf '%s\n' "$output"
+          if [[ "$status" -ne 0 ]]; then
+            return 1
+          fi
+          validate_perf_output "$output"
+        }
+
+        echo "Kernel:"
+        uname -a
+        echo "perf:"
+        perf --version
+        echo "Initial perf sysctls:"
+        print_sysctl kernel.perf_event_paranoid
+        print_sysctl kernel.nmi_watchdog
+        print_sysctl kernel.kptr_restrict
+        echo "CPU perf event source:"
+        if [[ -d /sys/bus/event_source/devices/cpu ]]; then
+          ls -ld /sys/bus/event_source/devices/cpu
+          if [[ -r /sys/bus/event_source/devices/cpu/type ]]; then
+            echo "cpu.type=$(cat /sys/bus/event_source/devices/cpu/type)"
+          fi
+        else
+          echo "/sys/bus/event_source/devices/cpu=<unavailable>"
+        fi
+
+        set_sysctl_required kernel.perf_event_paranoid -1
+        set_sysctl_optional kernel.nmi_watchdog 0
+        set_sysctl_optional kernel.kptr_restrict 0
+
+        echo "Updated perf sysctls:"
+        print_sysctl kernel.perf_event_paranoid
+        print_sysctl kernel.nmi_watchdog
+        print_sysctl kernel.kptr_restrict
+
+        selected_events=""
+        if probe_events "instructions:u,cycles:u"; then
+          selected_events="instructions:u,cycles:u"
+        elif probe_events "instructions,cycles"; then
+          selected_events="instructions,cycles"
+        else
+          echo "::error::Linux perf hardware counters are not available on this runner. Tried instructions:u,cycles:u and instructions,cycles, but perf did not return numeric counts for both events."
+          exit 1
+        fi
+
+        echo "Selected perf events: $selected_events"
+        echo "VSCODE_MEMORY_LEAK_FINDER_PERF_EVENTS=$selected_events" >> "$GITHUB_ENV"
