@@ -12,6 +12,22 @@ test('parsePerfStatOutput parses perf csv output', () => {
 `)
 
   expect(result).toEqual({
+    counters: [
+      {
+        available: true,
+        event: 'cycles:u',
+        name: 'cycles',
+        unit: 'count',
+        value: 789012,
+      },
+      {
+        available: true,
+        event: 'instructions:u',
+        name: 'instructions',
+        unit: 'count',
+        value: 123456,
+      },
+    ],
     cycles: 789012,
     instructions: 123456,
   })
@@ -23,6 +39,22 @@ test('parsePerfStatOutput treats unsupported perf counters as unavailable', () =
 `)
 
   expect(result).toEqual({
+    counters: [
+      {
+        available: false,
+        event: 'cycles:u',
+        name: 'cycles',
+        unit: 'count',
+        value: null,
+      },
+      {
+        available: false,
+        event: 'instructions:u',
+        name: 'instructions',
+        unit: 'count',
+        value: null,
+      },
+    ],
     cycles: null,
     instructions: null,
   })
@@ -34,8 +66,67 @@ test('parsePerfStatOutput parses human perf output', () => {
 `)
 
   expect(result).toEqual({
+    counters: [
+      {
+        available: true,
+        event: 'cycles:u',
+        name: 'cycles',
+        unit: 'count',
+        value: 134745265,
+      },
+      {
+        available: true,
+        event: 'instructions:u',
+        name: 'instructions',
+        unit: 'count',
+        value: 107379466,
+      },
+    ],
     cycles: 134745265,
     instructions: 107379466,
+  })
+})
+
+test('parsePerfStatOutput parses software perf events', () => {
+  const result = parsePerfStatOutput(`          672524      task-clock
+               2      context-switches
+               1      cpu-migrations
+              80      page-faults
+`)
+
+  expect(result).toEqual({
+    counters: [
+      {
+        available: true,
+        event: 'context-switches',
+        name: 'context-switches',
+        unit: 'count',
+        value: 2,
+      },
+      {
+        available: true,
+        event: 'cpu-migrations',
+        name: 'cpu-migrations',
+        unit: 'count',
+        value: 1,
+      },
+      {
+        available: true,
+        event: 'page-faults',
+        name: 'page-faults',
+        unit: 'count',
+        value: 80,
+      },
+      {
+        available: true,
+        event: 'task-clock',
+        name: 'task-clock',
+        unit: 'usec',
+        value: 672524,
+      },
+    ],
+    cycles: null,
+    instructions: null,
   })
 })
 

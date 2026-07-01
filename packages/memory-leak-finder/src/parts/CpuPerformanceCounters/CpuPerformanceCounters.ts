@@ -8,6 +8,7 @@ export interface CpuPerformanceCounter {
 
 export interface CpuPerformanceCountersSample {
   readonly command: readonly string[]
+  readonly counters?: readonly CpuPerformanceCounter[]
   readonly cycles: number | null
   readonly instructions: number | null
   readonly perfPid?: number
@@ -28,6 +29,15 @@ const counterSpecs = [
   },
 ] as const
 
+const counterUnits: Record<string, string> = {
+  'context-switches': 'count',
+  'cpu-migrations': 'count',
+  cycles: 'count',
+  instructions: 'count',
+  'page-faults': 'count',
+  'task-clock': 'usec',
+}
+
 const parseCounterValue = (value: string): number | null => {
   const normalized = value.trim()
   if (!normalized || normalized.startsWith('<')) {
@@ -44,28 +54,32 @@ const normalizeEventName = (eventName: string): string => {
   return eventName.trim().split(':')[0]
 }
 
-const getConfiguredEvents = (command: readonly string[]): Record<string, string> => {
+const getConfiguredEvents = (command: readonly string[]): readonly string[] => {
   const eventsIndex = command.indexOf('-e')
   if (eventsIndex === -1) {
-    return Object.create(null)
+    return []
   }
   const events = command[eventsIndex + 1]
   if (!events) {
-    return Object.create(null)
+    return []
   }
-  const configuredEvents: Record<string, string> = Object.create(null)
-  for (const event of events.split(',')) {
-    const trimmedEvent = event.trim()
-    const normalized = normalizeEventName(trimmedEvent)
-    if (normalized === 'instructions' || normalized === 'cycles') {
-      configuredEvents[normalized] = trimmedEvent
-    }
-  }
-  return configuredEvents
+  return events.split(',').map((event) => event.trim()).filter(Boolean)
 }
 
-export const parsePerfStatOutput = (rawOutput: string): Pick<CpuPerformanceCountersSample, 'cycles' | 'instructions'> => {
+const toCounterRow = (event: string, value: number | null): CpuPerformanceCounter => {
+  const name = normalizeEventName(event)
+  return {
+    available: typeof value === 'number',
+    event,
+    name,
+    unit: counterUnits[name] || 'count',
+    value,
+  }
+}
+
+export const parsePerfStatOutput = (rawOutput: string): Pick<CpuPerformanceCountersSample, 'counters' | 'cycles' | 'instructions'> => {
   const counters: Record<string, number | null> = Object.create(null)
+  const events: Record<string, string> = Object.create(null)
   const lines = rawOutput.split('\n')
   for (const line of lines) {
     const trimmed = line.trim()
@@ -74,22 +88,33 @@ export const parsePerfStatOutput = (rawOutput: string): Pick<CpuPerformanceCount
     }
     const csvParts = trimmed.split(',')
     if (csvParts.length >= 3 && csvParts[1] === '' && csvParts[2]) {
-      counters[normalizeEventName(csvParts[2])] = parseCounterValue(csvParts[0])
+      const event = csvParts[2].trim()
+      const name = normalizeEventName(event)
+      events[name] = event
+      counters[name] = parseCounterValue(csvParts[0])
       continue
     }
-    const textMatch = /^\s*([0-9,]+|<[^>]+>)\s+([A-Za-z][\w:-]*)/.exec(line)
+    const textMatch = /^\s*([0-9,.]+|<[^>]+>)\s+([A-Za-z][\w:.-]*)/.exec(line)
     if (textMatch) {
-      counters[normalizeEventName(textMatch[2])] = parseCounterValue(textMatch[1])
+      const event = textMatch[2]
+      const name = normalizeEventName(event)
+      events[name] = event
+      counters[name] = parseCounterValue(textMatch[1])
     }
   }
+  const rows = Object.keys(counters).toSorted().map((name) => toCounterRow(events[name] || name, counters[name]))
   return {
+    counters: rows,
     cycles: counters.cycles ?? null,
     instructions: counters.instructions ?? null,
   }
 }
 
 export const toCpuPerformanceCounterRows = (sample: CpuPerformanceCountersSample): readonly CpuPerformanceCounter[] => {
-  const configuredEvents = getConfiguredEvents(sample.command)
+  if (sample.counters?.length) {
+    return sample.counters
+  }
+  const configuredEvents = Object.fromEntries(getConfiguredEvents(sample.command).map((event) => [normalizeEventName(event), event]))
   return counterSpecs.map((spec) => {
     const value = sample[spec.name]
     return {

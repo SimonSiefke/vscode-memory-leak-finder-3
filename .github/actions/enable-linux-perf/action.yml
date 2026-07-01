@@ -1,9 +1,39 @@
 name: Enable Linux perf
-description: Enable Linux perf counters for unprivileged measurement jobs.
+description: Enable Linux perf and strace for unprivileged measurement jobs.
 runs:
   using: composite
   steps:
-    - name: Enable and verify hardware perf counters
+    - name: Install perf and strace
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        sudo apt-get update
+        sudo apt-get install -y linux-tools-common linux-tools-generic strace
+        sudo apt-get install -y "linux-tools-$(uname -r)" || sudo apt-get install -y linux-tools-azure || true
+
+        path_perf_bin="$(command -v perf || true)"
+        perf_bin="$path_perf_bin"
+        if [[ -z "$perf_bin" ]] || ! "$perf_bin" --version; then
+          perf_bin="$(find /usr/lib/linux-tools -type f -name perf 2>/dev/null | sort -V | tail -n 1 || true)"
+        fi
+
+        if [[ -z "$perf_bin" ]]; then
+          echo "::error::No perf binary is available on this runner."
+          exit 1
+        fi
+
+        if [[ "$perf_bin" != "$path_perf_bin" ]]; then
+          sudo ln -sf "$perf_bin" /usr/local/bin/perf
+          export PATH="/usr/local/bin:$PATH"
+          echo "/usr/local/bin" >> "$GITHUB_PATH"
+          hash -r
+        fi
+
+        perf --version
+        strace --version
+
+    - name: Enable and verify perf counters
       shell: bash
       run: |
         set -euo pipefail
@@ -34,6 +64,7 @@ runs:
 
         validate_perf_output() {
           local output="$1"
+          local expected_count="$2"
           if [[ -z "${output//[[:space:]]/}" ]]; then
             return 1
           fi
@@ -48,10 +79,8 @@ runs:
               }
               NF >= 3 {
                 value = $1
-                event = $3
                 gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", event)
-                if (event ~ /^(instructions|cycles)(:u)?$/ && value ~ /^[0-9]+([.][0-9]+)?$/) {
+                if (value ~ /^[0-9]+([.][0-9]+)?$/) {
                   valid += 1
                 }
               }
@@ -60,11 +89,13 @@ runs:
               }
             ' <<< "$output"
           )"
-          [[ "$valid_count" -ge 2 ]]
+          [[ "$valid_count" -ge "$expected_count" ]]
         }
 
         probe_events() {
           local events="$1"
+          local expected_events
+          IFS=, read -r -a expected_events <<< "$events"
           local output
           local status
           set +e
@@ -76,7 +107,23 @@ runs:
           if [[ "$status" -ne 0 ]]; then
             return 1
           fi
-          validate_perf_output "$output"
+          validate_perf_output "$output" "${#expected_events[@]}"
+        }
+
+        verify_perf_smoke_test() {
+          local output_file="perf-smoke-test.txt"
+          perf stat \
+            -e task-clock,context-switches,cpu-migrations,page-faults \
+            -o "$output_file" \
+            -- sleep 0.1
+          cat "$output_file"
+        }
+
+        verify_strace_smoke_test() {
+          local output_file="strace-smoke-test.log"
+          strace -qq -f -o "$output_file" -- sleep 0.1
+          test -s "$output_file"
+          head -n 20 "$output_file"
         }
 
         echo "Kernel:"
@@ -106,13 +153,21 @@ runs:
         print_sysctl kernel.nmi_watchdog
         print_sysctl kernel.kptr_restrict
 
+        echo "Verifying perf with software events:"
+        verify_perf_smoke_test
+
+        echo "Verifying strace:"
+        verify_strace_smoke_test
+
         selected_events=""
         if probe_events "instructions:u,cycles:u"; then
           selected_events="instructions:u,cycles:u"
         elif probe_events "instructions,cycles"; then
           selected_events="instructions,cycles"
+        elif probe_events "task-clock,context-switches,cpu-migrations,page-faults"; then
+          selected_events="task-clock,context-switches,cpu-migrations,page-faults"
         else
-          echo "::error::Linux perf hardware counters are not available on this runner. Tried instructions:u,cycles:u and instructions,cycles, but perf did not return numeric counts for both events."
+          echo "::error::Linux perf counters are not available on this runner. Tried hardware and software perf events, but perf did not return numeric counts."
           exit 1
         fi
 
